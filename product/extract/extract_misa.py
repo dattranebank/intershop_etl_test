@@ -32,7 +32,8 @@ def get_data(file_path) -> pd.DataFrame:
 
 # Test nhanh khi chạy trực tiếp file này
 if __name__ == "__main__":
-    path="D:/intershop-data/MISA_Product.xlsx"
-    df_misa = get_data(path)
-    df_misa.to_excel("D:/intershop-data/products_misa_processed.xlsx", index=False)
+    input_path="D:\\intershop_data\\raw\\misa\\misa_product.xlsx"
+    output_path="D:\\intershop_data\\processed\\product\\products_misa_processed.xlsx"
+    df_misa = get_data(input_path)
+    df_misa.to_excel(output_path, index=False)
     print(df_misa.head())

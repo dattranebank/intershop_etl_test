@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/Intershop-ETL.iml" filepath="$PROJECT_DIR$/.idea/Intershop-ETL.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/intershop_etl_test.iml" filepath="$PROJECT_DIR$/.idea/intershop_etl_test.iml" />
     </modules>
   </component>
 </project>

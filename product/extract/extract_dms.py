@@ -2,11 +2,13 @@ import pandas as pd
 from pathlib import Path
 
 
+
 def get_data(file_path) -> pd.DataFrame:
     """
     Trích xuất dữ liệu sản phẩm từ file Excel DMS.
     - Xóa hẳn hàng đầu tiên trong file.
     - Lấy hàng kế tiếp làm header.
+    - Thêm cột STT (1,2,3,...).
     """
     path = Path(file_path)
 
@@ -23,6 +25,12 @@ def get_data(file_path) -> pd.DataFrame:
     df_raw.columns = df_raw.iloc[0]
     df = df_raw.drop(index=0).reset_index(drop=True)
 
+    # Thêm cột STT ở đầu
+    df.insert(0, "STT", range(1, len(df) + 1))
+
+    # Xóa cột ngay sau STT
+    df.drop(df.columns[1], axis=1, inplace=True)
+
     print(f"Đọc thành công {len(df)} dòng từ {file_path}")
     print("Các cột:", df.columns.tolist())
 
@@ -30,7 +38,8 @@ def get_data(file_path) -> pd.DataFrame:
 
 # Test nhanh khi chạy trực tiếp file này
 if __name__ == "__main__":
-    path="D:/intershop-data/DMS_Product.xls"
-    df_misa = get_data(path)
-    df_misa.to_excel("D:/intershop-data/products_dms_processed.xlsx", index=False)
-    print(df_misa.head())
+    input_path="D:\\intershop_data\\raw\\dms\\dms_product.xls"
+    output_path="D:\\intershop_data\\processed\\product\\products_dms_processed.xlsx"
+    df_dms = get_data(input_path)
+    df_dms.to_excel(output_path, index=False)
+    print(df_dms.head())
