@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import time, timedelta
 
 
-def get_data(file_path) -> pd.DataFrame:
+def get_data(file_path):
     """
     Trích xuất dữ liệu sản phẩm từ file Excel MISA,
     bỏ qua hàng 1, 2 và dùng hàng 3, 4 làm header.
@@ -14,7 +14,7 @@ def get_data(file_path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(f"Không tìm thấy file: {file_path}")
 
-    # Bỏ qua 2 hàng đầu, hàng 3+4 là header
+    # Bỏ qua 2 hàng đầu, hàng 3 là header
     df = pd.read_excel(path, skiprows=2, header=0)
 
     print(f"Đọc thành công {len(df)} dòng từ {file_path}")
