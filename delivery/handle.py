@@ -145,50 +145,48 @@ def transform_data(df_dms):
     # Tạo cột Thời gian duyệt đơn CS
     df_dms["Thời gian duyệt đơn CS"] = df_dms["Ngày giờ cập nhật"] - df_dms["Ngày giờ đặt hàng"]
 
+    delta = df_dms["Ngày giờ cập nhật"] - df_dms["Ngày giờ đặt hàng"]
+
     # Đổi timedelta -> số ngày thập phân (có thể âm, float)
-    dec_days = df_dms["Thời gian duyệt đơn CS"] / pd.Timedelta(days=1)
+    df_dms= df_dms.rename(columns={"Thời gian duyệt đơn CS": "Số ngày duyệt đơn CS"})
 
-    # Cột số ngày: lấy TRUNC (hướng về 0, không làm tròn xuống như floor)
-    df_dms["Số ngày duyệt đơn CS"] = np.trunc(dec_days).astype("Int64")
+    # Đổi timedelta -> số ngày (float)
+    df_dms["Số ngày duyệt đơn CS"] = delta / pd.Timedelta(days=1)
 
-    # Cột số giờ: phần lẻ tuyệt đối (<24h)
-    df_dms["Số giờ duyệt đơn CS"] = ((np.abs(dec_days - np.trunc(dec_days))) * 24).round(3)
+    # Đổi sang giờ và làm tròn 3 số thập phân
+    df_dms["Số giờ duyệt đơn CS"] = (df_dms["Số ngày duyệt đơn CS"] * 24) \
+        .astype("float64").round(2)
+    df_dms["Số ngày duyệt đơn CS"] = df_dms["Số ngày duyệt đơn CS"].astype("float64").round(2)
 
-    # Chuyển đổi
-    df_dms["Số giờ duyệt đơn CS"] = df_dms["Số giờ duyệt đơn CS"].apply(hours_to_hms)
 
     ## Kho
     # Tạo cột Ngày giờ xử lý của kho
     df_dms["Ngày giờ xử lý của kho"] = df_dms["Ngày giờ tạo phiếu vận chuyển"] - df_dms["Ngày giờ cập nhật"]
 
+    delta = df_dms["Ngày giờ tạo phiếu vận chuyển"] - df_dms["Ngày giờ cập nhật"]
+
     # Đổi timedelta -> số ngày thập phân (có thể âm, float)
-    dec_days = df_dms["Ngày giờ xử lý của kho"] / pd.Timedelta(days=1)
+    df_dms= df_dms.rename(columns={"Ngày giờ xử lý của kho": "Số ngày xử lý của kho"})
 
-    # Cột số ngày: lấy TRUNC (hướng về 0, không làm tròn xuống như floor)
-    df_dms["Số ngày xử lý của kho"] = np.trunc(dec_days).astype("Int64")
+    # Đổi timedelta -> số ngày (float)
+    df_dms["Số ngày xử lý của kho"] = delta / pd.Timedelta(days=1)
 
-    # Cột số giờ: phần lẻ tuyệt đối (<24h)
-    df_dms["Số giờ xử lý của kho"] = ((np.abs(dec_days - np.trunc(dec_days))) * 24).round(3)
-
-    # Chuyển đổi
-    df_dms["Số giờ xử lý của kho"] = df_dms["Số giờ xử lý của kho"].apply(hours_to_hms)
+    # Đổi sang giờ và làm tròn 3 số thập phân
+    df_dms["Số giờ xử lý của kho"] = (df_dms["Số ngày xử lý của kho"] * 24) \
+        .astype("float64").round(2)
+    df_dms["Số ngày xử lý của kho"] = df_dms["Số ngày xử lý của kho"].astype("float64").round(2)
 
 
     ## Giao hàng
     # Tạo cột Số ngày giao hàng thành công
     df_dms["Số ngày giao hàng thành công"] = df_dms["Ngày giờ giao hàng thành công"] - df_dms["Ngày giờ tạo phiếu vận chuyển"]
 
-    # # Đổi timedelta -> số ngày thập phân (có thể âm, float)
-    # dec_days = df_dms["Ngày giờ xử lý của kho"] / pd.Timedelta(days=1)
-    #
-    # # Cột số ngày: lấy TRUNC (hướng về 0, không làm tròn xuống như floor)
-    # df_dms["Số ngày xử lý của kho"] = np.trunc(dec_days).astype("Int64")
-    #
-    # # Cột số giờ: phần lẻ tuyệt đối (<24h)
-    # df_dms["Số giờ xử lý của kho"] = ((np.abs(dec_days - np.trunc(dec_days))) * 24).round(3)
-    #
-    # # Chuyển đổi
-    # df_dms["Số giờ xử lý của kho"] = df_dms["Số giờ xử lý của kho"].apply(hours_to_hms)
+    delta = df_dms["Ngày giờ giao hàng thành công"] - df_dms["Ngày giờ tạo phiếu vận chuyển"]
+
+    # Đổi timedelta -> số ngày (float)
+    df_dms["Số ngày giao hàng thành công"] = delta / pd.Timedelta(days=1)
+
+    df_dms["Số ngày giao hàng thành công"] = df_dms["Số ngày giao hàng thành công"].astype("float64").round(2)
 
     # Data Mart
     # Danh sách cột bạn muốn ưu tiên đưa ra đầu
@@ -200,10 +198,8 @@ def transform_data(df_dms):
         "Ngày giờ cập nhật",
         "Ngày giờ tạo phiếu vận chuyển",
         "Ngày giờ giao hàng thành công",
-        "Thời gian duyệt đơn CS",
         "Số ngày duyệt đơn CS",
         "Số giờ duyệt đơn CS",
-        "Ngày giờ xử lý của kho",
         "Số ngày xử lý của kho",
         "Số giờ xử lý của kho",
         "Số ngày giao hàng thành công",
