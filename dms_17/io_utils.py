@@ -16,15 +16,19 @@ def get_data(input_dir, sheet_name):
 
 def save_output(df, output_dir, file_name: str):
     """
-    Xuất DataFrame ra Excel + CSV
+    Xuất DataFrame ra Excel + CSV + TSV (UTF-8)
     """
-    print(f"----- Đang xuất file excel và file csv -----")
+    print("----- Đang xuất file Excel, CSV và TSV -----")
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Đường dẫn
     output_excel = output_dir / f"{file_name}.xlsx"
-    output_csv   = output_dir / f"{file_name}.csv"
+    output_tsv = output_dir / f"{file_name}.tsv"
 
+    # Excel
     df.to_excel(output_excel, index=False)
-    df.to_csv(output_csv, index=False, encoding="utf-8-sig")
 
-    print(f"Đã xuất: {output_excel} và {output_csv}")
+    # TSV an toàn cho ETL/Power Query
+    df.to_csv(output_tsv, index=False, sep="\t", encoding="utf-8")
+
+    print(f"Đã xuất: {output_excel}, {output_tsv}")
