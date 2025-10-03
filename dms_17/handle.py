@@ -1,25 +1,19 @@
+import re
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from datetime import time, timedelta
 
 
-def get_data(file_path) -> pd.DataFrame:
+def clean_columns(df_all):
     """
-    Trích xuất dữ liệu sản phẩm từ file Excel MISA,
-    bỏ qua hàng 1, 2 và dùng hàng 3, 4 làm header.
+    Chuẩn hoá tên cột:
+    - Bỏ khoảng trắng thừa 2 đầu
+    - Thay \n bằng space
+    - Gom nhiều khoảng trắng/tab/newline thành 1 space
     """
-    path = Path(file_path)
-
-    if not path.exists():
-        raise FileNotFoundError(f"Không tìm thấy file: {file_path}")
-
-    # Bỏ qua 2 hàng đầu, hàng 3+4 là header
-    df = pd.read_excel(path, skiprows=2, header=0)
-
-    print(f"Đọc thành công {len(df)} dòng từ {file_path}")
-    print("Các cột:", df.columns.tolist())
-
+    df = df_all.rename(columns=lambda x: re.sub(r"\s+", " ", str(x)).strip())
     return df
 
 
@@ -157,7 +151,7 @@ def transform_data(df_dms):
     delta = df_dms["Ngày giờ cập nhật"] - df_dms["Ngày giờ đặt hàng"]
 
     # Đổi timedelta -> số ngày thập phân (có thể âm, float)
-    df_dms= df_dms.rename(columns={"Thời gian duyệt đơn CS": "Số ngày duyệt đơn CS"})
+    df_dms = df_dms.rename(columns={"Thời gian duyệt đơn CS": "Số ngày duyệt đơn CS"})
 
     # Đổi timedelta -> số ngày (float)
     df_dms["Số ngày duyệt đơn CS"] = delta / pd.Timedelta(days=1)
@@ -167,7 +161,6 @@ def transform_data(df_dms):
         .astype("float64").round(2)
     df_dms["Số ngày duyệt đơn CS"] = df_dms["Số ngày duyệt đơn CS"].astype("float64").round(2)
 
-
     ## Kho
     # Tạo cột Ngày giờ xử lý của kho
     df_dms["Ngày giờ xử lý của kho"] = df_dms["Ngày giờ tạo phiếu vận chuyển"] - df_dms["Ngày giờ cập nhật"]
@@ -175,7 +168,7 @@ def transform_data(df_dms):
     delta = df_dms["Ngày giờ tạo phiếu vận chuyển"] - df_dms["Ngày giờ cập nhật"]
 
     # Đổi timedelta -> số ngày thập phân (có thể âm, float)
-    df_dms= df_dms.rename(columns={"Ngày giờ xử lý của kho": "Số ngày xử lý của kho"})
+    df_dms = df_dms.rename(columns={"Ngày giờ xử lý của kho": "Số ngày xử lý của kho"})
 
     # Đổi timedelta -> số ngày (float)
     df_dms["Số ngày xử lý của kho"] = delta / pd.Timedelta(days=1)
@@ -185,10 +178,10 @@ def transform_data(df_dms):
         .astype("float64").round(2)
     df_dms["Số ngày xử lý của kho"] = df_dms["Số ngày xử lý của kho"].astype("float64").round(2)
 
-
     ## Giao hàng
     # Tạo cột Số ngày giao hàng thành công
-    df_dms["Số ngày giao hàng thành công"] = df_dms["Ngày giờ giao hàng thành công"] - df_dms["Ngày giờ tạo phiếu vận chuyển"]
+    df_dms["Số ngày giao hàng thành công"] = df_dms["Ngày giờ giao hàng thành công"] - df_dms[
+        "Ngày giờ tạo phiếu vận chuyển"]
 
     delta = df_dms["Ngày giờ giao hàng thành công"] - df_dms["Ngày giờ tạo phiếu vận chuyển"]
 
