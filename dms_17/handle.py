@@ -44,8 +44,11 @@ def cast_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     ]
     for col in cat_cols:
         if col in df.columns:
-            df[col] = df[col].astype("category")
-
+            # Nếu cột có giá trị NaN => Arrow sẽ lỗi, nên chuyển về string thay vì category
+            if df[col].isna().any():
+                df[col] = df[col].astype("string")
+            else:
+                df[col] = df[col].astype("category")
     return df
 
 
