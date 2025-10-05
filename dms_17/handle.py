@@ -6,6 +6,50 @@ from pathlib import Path
 from datetime import time, timedelta
 
 
+import pandas as pd
+
+def cast_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ép kiểu dữ liệu chuẩn cho bảng DSDH (đơn hàng) theo schema 2025.
+    Gồm 3 nhóm chính: Int64, string, category.
+    """
+
+    # ===== Numeric =====
+    int_cols = ["Năm", "Tháng", "Ngày"]
+    for col in int_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
+
+    # ===== String =====
+    string_cols = [
+        "Ngày đặt", "Giờ tạo", "Mã KH", "Tên Khách Hàng", "Tên Người Liên Hệ",
+        "ID Khách Hàng", "Địa chỉ", "Mã Phiếu Gộp", "Mã Đơn Hàng",
+        "Mã đơn hàng Tham chiếu", "Ngày Duyệt đơn", "Mã Sản Phẩm", "Tên Sản Phẩm",
+        "Số lượng", "Đơn giá", "Doanh số", "Doanh số trước chiết khấu (VAT)",
+        "Chiết khấu", "Chiết khấu hàng bán", "Doanh số sau chiết khấu",
+        "Tiền VAT", "Thanh Toán", "% Thuế VAT", "Chiết khấu hàng bán hàng",
+        "Mã CTKM", "Tên CTKM", "Ghi Chú của NVBH", "Doanh số Gross Sales"
+    ]
+    for col in string_cols:
+        if col in df.columns:
+            df[col] = df[col].astype("string")
+
+    # ===== Category =====
+    cat_cols = [
+        "Kênh", "Mã Vùng", "Tên Vùng", "Mã Route", "Mã Nhân Viên", "Tên nhân viên",
+        "Loại KH", "Tỉnh", "Thành phố", "Quận", "Huyện", "Phường", "Xã",
+        "Trạng thái đơn hàng", "Tài Khoản Duyệt Đơn", "Tên Người Duyệt Đơn",
+        "Loại hợp đồng", "Tài khoản tạo", "Tên người tạo", "Nhãn Hàng",
+        "Loại hàng", "Trạng thái Misa", "Loại đơn"
+    ]
+    for col in cat_cols:
+        if col in df.columns:
+            df[col] = df[col].astype("category")
+
+    return df
+
+
+
 def clean_columns(df_all):
     """
     Chuẩn hoá tên cột:

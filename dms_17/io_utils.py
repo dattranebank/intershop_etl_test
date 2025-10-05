@@ -23,12 +23,10 @@ def save_output(df, output_dir, file_name: str):
 
     # Đường dẫn
     output_excel = output_dir / f"{file_name}.xlsx"
-    output_tsv = output_dir / f"{file_name}.tsv"
 
     # Excel
     df.to_excel(output_excel, index=False)
 
-    # TSV an toàn cho ETL/Power Query
-    df.to_csv(output_tsv, index=False, sep="\t", encoding="utf-8")
 
-    print(f"Đã xuất: {output_excel}, {output_tsv}")
+
+    print(f"Đã xuất: {output_excel}")
