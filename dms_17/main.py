@@ -1,13 +1,14 @@
 # main.py
 from pathlib import Path
 import pandas as pd
-import time
+import time as time_module
 import psutil
 import os
 import pyarrow as pa
 import pyarrow.parquet as pq
 import gc
-from dms_17.io_utils import *
+from dms_17.handle import *
+
 
 process = psutil.Process(os.getpid())
 
@@ -19,7 +20,7 @@ def log_usage(label=""):
 
 
 def main():
-    start = time.time()
+    start = time_module.time()
     log_usage("Trước khi chạy")
 
     input_dir = Path("D:/data/input")
@@ -34,8 +35,9 @@ def main():
     process_to_parquet(input_dir, parquet_path, all_columns)
 
     log_usage("Sau khi xuất parquet")
-    end = time.time()
+    end = time_module.time()
     print(f"⏱️ Thời gian chạy: {end - start:.2f} giây")
+
 
 if __name__ == "__main__":
     main()

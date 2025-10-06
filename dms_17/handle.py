@@ -8,50 +8,6 @@ from datetime import time, timedelta
 
 import pandas as pd
 
-def cast_dtypes(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ép kiểu dữ liệu chuẩn cho bảng DSDH (đơn hàng) theo schema 2025.
-    Gồm 3 nhóm chính: Int64, string, category.
-    """
-
-    # ===== Numeric =====
-    int_cols = ["Năm", "Tháng", "Ngày"]
-    for col in int_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
-
-    # ===== String =====
-    string_cols = [
-        "Ngày đặt", "Giờ tạo", "Mã KH", "Tên Khách Hàng", "Tên Người Liên Hệ",
-        "ID Khách Hàng", "Địa chỉ", "Mã Phiếu Gộp", "Mã Đơn Hàng",
-        "Mã đơn hàng Tham chiếu", "Ngày Duyệt đơn", "Mã Sản Phẩm", "Tên Sản Phẩm",
-        "Số lượng", "Đơn giá", "Doanh số", "Doanh số trước chiết khấu (VAT)",
-        "Chiết khấu", "Chiết khấu hàng bán", "Doanh số sau chiết khấu",
-        "Tiền VAT", "Thanh Toán", "% Thuế VAT", "Chiết khấu hàng bán hàng",
-        "Mã CTKM", "Tên CTKM", "Ghi Chú của NVBH", "Doanh số Gross Sales"
-    ]
-    for col in string_cols:
-        if col in df.columns:
-            df[col] = df[col].astype("string")
-
-    # ===== Category =====
-    cat_cols = [
-        "Kênh", "Mã Vùng", "Tên Vùng", "Mã Route", "Mã Nhân Viên", "Tên nhân viên",
-        "Loại KH", "Tỉnh", "Thành phố", "Quận", "Huyện", "Phường", "Xã",
-        "Trạng thái đơn hàng", "Tài Khoản Duyệt Đơn", "Tên Người Duyệt Đơn",
-        "Loại hợp đồng", "Tài khoản tạo", "Tên người tạo", "Nhãn Hàng",
-        "Loại hàng", "Trạng thái Misa", "Loại đơn"
-    ]
-    for col in cat_cols:
-        if col in df.columns:
-            # Nếu cột có giá trị NaN => Arrow sẽ lỗi, nên chuyển về string thay vì category
-            if df[col].isna().any():
-                df[col] = df[col].astype("string")
-            else:
-                df[col] = df[col].astype("category")
-    return df
-
-
 
 def clean_columns(df_all):
     """
@@ -63,201 +19,121 @@ def clean_columns(df_all):
     df = df_all.rename(columns=lambda x: re.sub(r"\s+", " ", str(x)).strip())
     return df
 
+from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import gc
+import os
+import psutil
+from dms_17.handle import *
 
-def merge_date_time(df, col_date, col_time, new_col_name=None):
+process = psutil.Process(os.getpid())
+
+
+def log_usage(label=""):
+    mem = process.memory_info().rss / 1024 ** 2  # MB
+    cpu = process.cpu_percent(interval=0.1)
+    print(f"[{label}] RAM: {mem:.2f} MB | CPU: {cpu:.1f}%")
+
+
+def check(input_dir):
+    """Hợp nhất schema có GIỮ THỨ TỰ:
+       - lấy thứ tự cột file đầu tiên làm chuẩn
+       - cột mới ở các file sau sẽ append vào cuối theo thứ tự gặp
+       - 'Nguồn file' luôn ở cuối
     """
-    Gộp 2 cột ngày và giờ thành 1 cột datetime ISO 8601.
+    print("🔍 Đang quét schema tất cả file Excel...")
+    ordered_cols: list[str] = []
+    seen = set()
 
-    Args:
-        df (pd.DataFrame): DataFrame gốc
-        col_date (str): tên cột ngày
-        col_time (str): tên cột giờ
-        new_col_name (str, optional): tên cột mới.
-            Nếu None -> tự động đặt = "Ngày giờ " + col_date
+    # Duyệt file theo thứ tự tên để kết quả ổn định
+    for file in sorted(input_dir.glob("*.xlsx")):
+        try:
+            df = pd.read_excel(
+                file,
+                sheet_name="DSDH",
+                skiprows=2,
+                header=0,
+                nrows=0,  # đọc header thôi là đủ
+                engine="openpyxl"
+            )
+            for c in df.columns.tolist():  # giữ đúng thứ tự trong Excel
+                if c not in seen:
+                    seen.add(c)
+                    ordered_cols.append(c)
+        except Exception as e:
+            print(f"⚠️ Không đọc được cột của {file.name}: {e}")
 
-    Returns:
-        pd.DataFrame: DataFrame đã gộp cột
-    """
-    if new_col_name is None:
-        new_col_name = "Ngày giờ " + col_date
+    # Đảm bảo 'Nguồn file' nằm cuối cùng
+    if "Nguồn file" not in ordered_cols:
+        ordered_cols.append("Nguồn file")
 
-    # Gộp cột ngày + giờ, convert datetime
-    df[col_date] = pd.to_datetime(
-        df[col_date].astype(str) + " " + df[col_time].astype(str),
-        format="%d/%m/%Y %H:%M:%S",
-        errors="coerce"  # nếu bị NaN -> thành NaT
-    )
-
-    # Đổi tên cột
-    df = df.rename(columns={col_date: new_col_name})
-
-    # Xóa cột giờ
-    df = df.drop(columns=[col_time])
-
-    return df
-
-
-def xu_ly_ngay_gio(dt, thu):
-    if thu in ["T2", "T3", "T4", "T5", "T6"]:
-        if dt.time() <= time(8, 30):
-            return pd.Timestamp.combine(dt.date(), time(8, 30))
-        elif dt.time() > time(17, 30):
-            return pd.Timestamp.combine(dt.date() + timedelta(days=1), time(8, 30))
-        else:
-            return dt
-    elif thu == "T7":
-        # Thứ 7 -> chuyển sang thứ 2 tuần kế tiếp
-        return pd.Timestamp.combine(dt.date() + timedelta(days=2), time(8, 30))
-    elif thu == "T8":
-        # Chủ nhật -> chuyển sang thứ 2 tuần kế tiếp
-        return pd.Timestamp.combine(dt.date() + timedelta(days=1), time(8, 30))
-    return dt
+    print(f"📊 Tổng số cột sau khi union (giữ thứ tự): {len(ordered_cols)}\n")
+    return ordered_cols
 
 
-def td_to_text(td):
-    if pd.isna(td): return None
-    days = td.days
-    h, r = divmod(td.seconds, 3600)
-    m, s = divmod(r, 60)
-    return f"{days} ngày {h:02d}:{m:02d}:{s:02d}"
+def process_to_parquet(input_dir, parquet_path, all_columns):
+    """Đọc toàn bộ file Excel trong input_dir, chuẩn hóa schema, ghi thành 1 file Parquet."""
+    parquet_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # 🔹 Nếu file output cũ tồn tại → xóa trước
+    if parquet_path.exists():
+        try:
+            parquet_path.unlink()
+            print(f"🧹 Đã xóa file cũ: {parquet_path}")
+        except Exception as e:
+            print(f"⚠️ Không thể xóa file cũ (có thể đang mở?): {e}")
 
-def hours_to_hms(hours):
-    if pd.isna(hours):
-        return None
-    h = int(hours)
-    m = int((hours - h) * 60)
-    s = int(round(((hours - h) * 60 - m) * 60))
-    return f"{h:02d}:{m:02d}:{s:02d}"
+    writer = None
+    file_count = 0
 
+    for file in input_dir.glob("*.xlsx"):
+        print(f"📘 Đang xử lý file: {file.name}")
+        try:
+            df = pd.read_excel(
+                file,
+                sheet_name="DSDH",
+                skiprows=2,
+                header=0,
+                dtype_backend="pyarrow",
+                engine="openpyxl"
+            )
 
-def transform_data(df_dms):
-    # Gộp Ngày đặt hàng và Giờ đặt hàng
-    df_dms = merge_date_time(df_dms, "Ngày đặt hàng", "Giờ đặt hàng", "Ngày giờ đặt hàng")
+            df["Nguồn file"] = file.name  # Thêm cột Nguồn file với giá trị lên tên file
 
-    # Gộp Ngày cập nhật và Giờ cập nhật
-    df_dms = merge_date_time(df_dms, "Ngày cập nhật", "Giờ cập nhật", "Ngày giờ cập nhật")
+            # Bổ sung cột còn thiếu
+            for col in all_columns:
+                if col not in df.columns:
+                    df[col] = pd.NA
+            df = df[all_columns]
 
-    # Gộp Ngày tạo phiếu vận chuyển và Giờ tạo phiếu vận chuyển
-    df_dms = merge_date_time(df_dms, "Ngày tạo \nphiếu vận chuyển", "Giờ tạo \nphiếu vận chuyển",
-                             "Ngày giờ tạo phiếu vận chuyển")
+            df = clean_columns(df)  # Làm sạch tên cột
 
-    # Gộp Ngày tạo phiếu vận chuyển và Giờ tạo phiếu vận chuyển
-    df_dms = merge_date_time(df_dms, "Ngày giao hàng thành công", "Giờ giao hàng thành công",
-                             "Ngày giờ giao hàng thành công")
+            # Ép toàn bộ cột sang string để tránh lỗi schema mismatch
+            for col in df.columns:
+                df[col] = df[col].astype("string")
 
-    # Thêm cột Thứ số và Thứ (1=Mon, ..., 7=Sun)
-    df_dms["Thứ số"] = df_dms["Ngày giờ đặt hàng"].dt.isocalendar().day
-    df_dms["Thứ"] = df_dms["Thứ số"].map({
-        1: "T2",
-        2: "T3",
-        3: "T4",
-        4: "T5",
-        5: "T6",
-        6: "T7",
-        7: "T8"
-    })
+            # Chuyển sang Arrow Table
+            table = pa.Table.from_pandas(df, preserve_index=False)
 
-    # Tạo cột mới "Ngày giờ đặt hàng chuẩn hóa"
-    df_dms["Ngày giờ đặt hàng chuẩn hóa"] = df_dms.apply(
-        lambda row: xu_ly_ngay_gio(row["Ngày giờ đặt hàng"], row["Thứ"]),
-        axis=1
-    )
+            # Ghi file Parquet (chỉ khởi tạo writer 1 lần)
+            if writer is None:
+                writer = pq.ParquetWriter(parquet_path, table.schema, compression="snappy")
 
-    # Điều kiện 1: Mã đơn hàng bắt đầu bằng "T"
-    cond1 = df_dms["Mã\nđơn hàng"].astype(str).str.startswith("T")
+            writer.write_table(table)
+            file_count += 1
 
-    # Điều kiện 2: Ghi chú trên đơn hàng bắt đầu bằng "AN_"
-    cond2 = df_dms["Ghi chú \ntrên đơn hàng"].astype(str).str.startswith("AN_")
+            log_usage(f"Sau khi ghi {file.name}")
+            del df, table
+            gc.collect()
 
-    # Gán giá trị "Đơn trả thưởng" cho cột Loại đơn hàng khi thỏa 1 trong 2 điều kiện
-    df_dms.loc[cond1 | cond2, "Loại đơn hàng"] = "Đơn trả thưởng"
+        except Exception as e:
+            print(f"❌ Lỗi khi xử lý {file.name}: {e}")
 
-    # DWH
-    # Danh sách cột bạn muốn ưu tiên đưa ra đầu
-    priority_cols = [
-        "Ngày giờ đặt hàng",
-        "Thứ số",
-        "Thứ",
-        "Ngày giờ đặt hàng chuẩn hóa",
-        "Ngày giờ cập nhật",
-        "Ngày giờ tạo phiếu vận chuyển",
-        "Ngày giờ giao hàng thành công"
-    ]
-
-    # Các cột còn lại (trừ những cột ưu tiên)
-    other_cols = [c for c in df_dms.columns if c not in priority_cols]
-
-    # Đặt lại thứ tự cột
-    df_dms_dwh = df_dms[priority_cols + other_cols]
-
-    ## CS
-    # Tạo cột Thời gian duyệt đơn CS
-    df_dms["Thời gian duyệt đơn CS"] = df_dms["Ngày giờ cập nhật"] - df_dms["Ngày giờ đặt hàng"]
-
-    delta = df_dms["Ngày giờ cập nhật"] - df_dms["Ngày giờ đặt hàng"]
-
-    # Đổi timedelta -> số ngày thập phân (có thể âm, float)
-    df_dms = df_dms.rename(columns={"Thời gian duyệt đơn CS": "Số ngày duyệt đơn CS"})
-
-    # Đổi timedelta -> số ngày (float)
-    df_dms["Số ngày duyệt đơn CS"] = delta / pd.Timedelta(days=1)
-
-    # Đổi sang giờ và làm tròn 3 số thập phân
-    df_dms["Số giờ duyệt đơn CS"] = (df_dms["Số ngày duyệt đơn CS"] * 24) \
-        .astype("float64").round(2)
-    df_dms["Số ngày duyệt đơn CS"] = df_dms["Số ngày duyệt đơn CS"].astype("float64").round(2)
-
-    ## Kho
-    # Tạo cột Ngày giờ xử lý của kho
-    df_dms["Ngày giờ xử lý của kho"] = df_dms["Ngày giờ tạo phiếu vận chuyển"] - df_dms["Ngày giờ cập nhật"]
-
-    delta = df_dms["Ngày giờ tạo phiếu vận chuyển"] - df_dms["Ngày giờ cập nhật"]
-
-    # Đổi timedelta -> số ngày thập phân (có thể âm, float)
-    df_dms = df_dms.rename(columns={"Ngày giờ xử lý của kho": "Số ngày xử lý của kho"})
-
-    # Đổi timedelta -> số ngày (float)
-    df_dms["Số ngày xử lý của kho"] = delta / pd.Timedelta(days=1)
-
-    # Đổi sang giờ và làm tròn 3 số thập phân
-    df_dms["Số giờ xử lý của kho"] = (df_dms["Số ngày xử lý của kho"] * 24) \
-        .astype("float64").round(2)
-    df_dms["Số ngày xử lý của kho"] = df_dms["Số ngày xử lý của kho"].astype("float64").round(2)
-
-    ## Giao hàng
-    # Tạo cột Số ngày giao hàng thành công
-    df_dms["Số ngày giao hàng thành công"] = df_dms["Ngày giờ giao hàng thành công"] - df_dms[
-        "Ngày giờ tạo phiếu vận chuyển"]
-
-    delta = df_dms["Ngày giờ giao hàng thành công"] - df_dms["Ngày giờ tạo phiếu vận chuyển"]
-
-    # Đổi timedelta -> số ngày (float)
-    df_dms["Số ngày giao hàng thành công"] = delta / pd.Timedelta(days=1)
-
-    df_dms["Số ngày giao hàng thành công"] = df_dms["Số ngày giao hàng thành công"].astype("float64").round(2)
-
-    # Data Mart
-    # Danh sách cột bạn muốn ưu tiên đưa ra đầu
-    priority_cols = [
-        "Ngày giờ đặt hàng",
-        "Thứ số",
-        "Thứ",
-        "Ngày giờ đặt hàng chuẩn hóa",
-        "Ngày giờ cập nhật",
-        "Ngày giờ tạo phiếu vận chuyển",
-        "Ngày giờ giao hàng thành công",
-        "Số ngày duyệt đơn CS",
-        "Số giờ duyệt đơn CS",
-        "Số ngày xử lý của kho",
-        "Số giờ xử lý của kho",
-        "Số ngày giao hàng thành công",
-    ]
-
-    # Các cột còn lại (trừ những cột ưu tiên)
-    other_cols = [c for c in df_dms.columns if c not in priority_cols]
-
-    # Đặt lại thứ tự cột
-    df_dms_dwm = df_dms[priority_cols + other_cols]
-
-    return df_dms_dwh, df_dms_dwm
+    # Đóng writer cuối cùng
+    if writer:
+        writer.close()
+        print(f"✅ Hoàn tất ghi {file_count} file vào {parquet_path}")
+    else:
+        print("❌ Không có dữ liệu nào được ghi.")
