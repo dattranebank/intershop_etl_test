@@ -5,7 +5,14 @@ import pandas as pd
 from pathlib import Path
 from datetime import time, timedelta
 
-
+from pathlib import Path
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import gc
+import os
+import psutil
+from dms_17.handle import *
 import pandas as pd
 
 
@@ -19,14 +26,7 @@ def clean_columns(df_all):
     df = df_all.rename(columns=lambda x: re.sub(r"\s+", " ", str(x)).strip())
     return df
 
-from pathlib import Path
-import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
-import gc
-import os
-import psutil
-from dms_17.handle import *
+
 
 process = psutil.Process(os.getpid())
 
